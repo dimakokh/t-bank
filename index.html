@@ -103,15 +103,28 @@
       try {
         const u = await findUserByUsername(username);
         if (!u) return { ok:false, reason: "Пользователь не найден" };
-        const stored = u.data.password;
-        if (typeof stored === 'undefined') return { ok:false, reason: "Пароль не настроен на аккаунте" };
-        if (String(stored) !== String(password)) return { ok:true, key: u.key, data: u.data };
-        return { ok:false, reason: "Неправильный пароль" };
-      } catch (err) {
-        console.error('verifyCredentials error', err);
-        return { ok:false, reason: 'Ошибка сети/сервер: ' + (err.message || err) };
-      }
+        async function verifyCredentials(username, password) {
+  try {
+    const u = await findUserByUsername(username);
+    if (!u) return { ok: false, reason: "Пользователь не найден" };
+
+    const stored = u.data.password;
+    if (typeof stored === 'undefined') return { ok: false, reason: "Пароль не настроен на аккаунте" };
+
+    // Нормализуем: убираем пробелы вокруг и сравниваем строки
+    const sStored = String(stored).trim();
+    const sPass = String(password).trim();
+
+    if (sStored === sPass) {
+      return { ok: true, key: u.key, data: u.data };
+    } else {
+      return { ok: false, reason: "Неправильный пароль" };
     }
+  } catch (err) {
+    console.error('verifyCredentials error', err);
+    return { ok: false, reason: 'Ошибка сети/сервер: ' + (err.message || err) };
+  }
+}
 
     // --- confirmPayment: atomically обновляем терминал и подписываемся на результат ---
     async function confirmPayment(username, amount) {
