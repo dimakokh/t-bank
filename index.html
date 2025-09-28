@@ -97,13 +97,9 @@
         throw err;
       }
     }
+    
 
-    // --- verify credentials (very simple; compares with stored password) ---
-    async function verifyCredentials(username, password) {
-      try {
-        const u = await findUserByUsername(username);
-        if (!u) return { ok:false, reason: "Пользователь не найден" };
-        async function verifyCredentials(username, password) {
+async function verifyCredentials(username, password) {
   try {
     const u = await findUserByUsername(username);
     if (!u) return { ok: false, reason: "Пользователь не найден" };
@@ -125,6 +121,7 @@
     return { ok: false, reason: 'Ошибка сети/сервер: ' + (err.message || err) };
   }
 }
+
 
     // --- confirmPayment: atomically обновляем терминал и подписываемся на результат ---
     async function confirmPayment(username, amount) {
