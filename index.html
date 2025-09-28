@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Terminal Payment — Login</title>
-
+<title>Confirm payment — Terminal</title>
 <style>
   :root{
     --yellow: #FFD400;
@@ -16,258 +15,228 @@
   }
   @media (prefers-color-scheme: dark) {
     :root{
-      --bg: #000000;
-      --text: #ffffff;
+      --bg: #000;
+      --text: #fff;
       --card: #0a0a0a;
       --yellow: #FFD400;
       --dark-yellow: #E6BB00;
-      --btn-text: #000000;
+      --btn-text: #000;
     }
   }
-
-  html,body{
-    height:100%;
-    margin:0;
-    font-family: Inter, Roboto, Arial, sans-serif;
-    background: linear-gradient(180deg, var(--bg), var(--bg));
-    color:var(--text);
-  }
-
-  .wrap{
-    max-width:760px;
-    margin:40px auto;
-    padding:24px;
-  }
-
-  .card{
-    background:var(--card);
-    border-radius:12px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-    padding:20px;
-  }
-
-  h1{ margin:0 0 12px 0; font-size:20px }
-  p.lead{ margin:0 0 18px 0; color:rgba(0,0,0,0.6) }
-
-  label{ display:block; margin-top:12px; font-size:13px; color:var(--text) }
-  input[type="text"], input[type="password"], input[type="number"]{
-    width:100%;
-    padding:10px 12px;
-    margin-top:6px;
-    border-radius:8px;
-    border:1px solid rgba(0,0,0,0.08);
-    background: transparent;
-    color:var(--text);
-    box-sizing:border-box;
-  }
-
-  .row{ display:flex; gap:12px; margin-top:12px; }
-  .col{ flex:1; }
-
-  button.primary{
-    display:inline-block;
-    margin-top:16px;
-    padding:12px 18px;
-    border-radius:10px;
-    border: none;
-    background: linear-gradient(180deg,var(--yellow), var(--dark-yellow));
-    color: var(--btn-text);
-    font-weight:600;
-    cursor:pointer;
-    box-shadow: 0 6px 14px rgba(0,0,0,0.12);
-  }
-  button.ghost{
-    margin-left:12px;
-    background:transparent;
-    color:var(--text);
-    border:1px solid rgba(0,0,0,0.08);
-    padding:10px 14px;
-    border-radius:10px;
-    cursor:pointer;
-  }
-
-  .status{ margin-top:14px; font-size:14px; color:var(--text) }
-
-  .qr-wrap{
-    margin-top:18px;
-    display:flex;
-    gap:16px;
-    align-items:center;
-    justify-content:space-between;
-  }
-  .qr{
-    width:220px;
-    height:220px;
-    border-radius:12px;
-    background:white;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    border: 2px dashed rgba(0,0,0,0.06);
-  }
-  .qr img{ width:100%; height:100%; object-fit:cover; border-radius:8px; }
-
-  .small{ font-size:13px; color:rgba(0,0,0,0.6) }
-
-  @media (max-width:600px){
-    .qr{ width:160px; height:160px; }
-    .wrap{ margin:18px; }
-  }
+  html,body{height:100%;margin:0;font-family:Inter,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{max-width:760px;margin:28px auto;padding:18px}
+  .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+  h1{margin:0 0 8px;font-size:20px}
+  label{display:block;margin-top:12px;font-size:13px}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:transparent;color:var(--text)}
+  .row{display:flex;gap:10px;margin-top:12px}
+  button.primary{padding:12px 16px;border-radius:10px;border:none;background:linear-gradient(180deg,var(--yellow),var(--dark-yellow));color:var(--btn-text);font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid rgba(0,0,0,0.08);padding:10px;border-radius:8px;cursor:pointer}
+  .muted{color:rgba(0,0,0,0.55);font-size:13px}
+  .center{display:flex;align-items:center;gap:12px}
+  .qr{width:160px;height:160px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;border:1px dashed rgba(0,0,0,0.06)}
+  .hidden{display:none}
+  .status{margin-top:10px;font-size:14px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <h1>Подтверждение оплаты терминалом</h1>
-    <p class="lead">Отсканируйте QR-код на терминале, затем войдите в аккаунт, чтобы подтвердить оплату.</p>
+  <div class="wrap">
+    <div class="card" id="mainCard">
+      <h1>Оплата терминалом</h1>
+      <div id="intro" class="muted">Сканируйте QR на терминале — вы попали на эту страницу. Проверьте сумму и выполните вход.</div>
 
-    <div class="qr-wrap">
-      <div>
-        <div id="qrContainer" class="qr" title="QR для перехода на сайт">
-          <!-- img вставляется сюда JS -->
-        </div>
-        <div class="small">Сканируйте QR или нажмите по нему, чтобы открыть сайт.</div>
-      </div>
-
-      <div style="flex:1; margin-left:12px;">
-        <label for="terminalId">Terminal ID</label>
-        <input id="terminalId" type="text" placeholder="например: TERMINAL_1234" />
-
-        <label for="amount">Сумма (₽)</label>
-        <input id="amount" type="number" step="0.01" placeholder="100.00" />
-
-        <label for="userId">UserID</label>
-        <input id="userId" type="text" placeholder="Ваш UserID" />
-
-        <label for="password">Пароль</label>
-        <input id="password" type="password" placeholder="Пароль" />
-
-        <div class="row">
-          <div class="col">
-            <button id="btnLogin" class="primary">Подтвердить и отправить</button>
+      <div style="display:flex;gap:18px;margin-top:16px;align-items:flex-start">
+        <div>
+          <div id="qrBox" class="qr" title="QR on terminal">
+            <div id="qrText" class="muted">TERMINAL</div>
           </div>
-          <div>
-            <button id="btnClearCookie" class="ghost">Выйти (удалить cookie)</button>
-          </div>
+          <div class="muted" style="text-align:center;margin-top:8px">Терминал: <span id="qrTid">—</span></div>
         </div>
 
-        <div id="status" class="status"></div>
+        <div style="flex:1">
+          <!-- LOGIN FORM -->
+          <div id="loginStage">
+            <label>Terminal ID</label>
+            <input id="terminalId" placeholder="TERMINAL_..." />
+
+            <label>Сумма (₽)</label>
+            <input id="amount" type="number" step="0.01" placeholder="100.00" />
+
+            <label>Username</label>
+            <input id="username" placeholder="Ваш логин" />
+
+            <label>Пароль</label>
+            <input id="password" type="password" placeholder="Пароль" />
+
+            <div class="row">
+              <button id="btnAuth" class="primary">Войти</button>
+              <button id="btnFillCookie" class="ghost">Сохранённый логин</button>
+            </div>
+            <div id="loginStatus" class="status"></div>
+          </div>
+
+          <!-- CONFIRM STAGE -->
+          <div id="confirmStage" class="hidden">
+            <div class="muted">Вы вошли как <strong id="loggedUser"></strong></div>
+            <div style="margin-top:12px">
+              <div>Терминал: <strong id="confTid"></strong></div>
+              <div>Сумма: <strong id="confAmount"></strong> ₽</div>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button id="btnConfirm" class="primary">Подтвердить оплату</button>
+              <button id="btnLogout" class="ghost">Выйти</button>
+            </div>
+            <div id="confirmStatus" class="status"></div>
+          </div>
+
+          <!-- RESULT STAGE -->
+          <div id="resultStage" class="hidden">
+            <div id="resultText" style="font-weight:700;font-size:18px;margin-top:6px"></div>
+            <div class="muted" style="margin-top:8px">Вы будете возвращены через несколько секунд...</div>
+          </div>
+
+        </div>
       </div>
     </div>
-
-    <p style="margin-top:18px" class="small">Сайт запишет в Realtime Database терминала: mobile = "on", username = UserID, amount = сумма. Терминал увидит это и запустит списание.</p>
   </div>
-</div>
 
-<!-- ZXing QR (we will generate on the client) -->
 <script>
-// helper: create QR via canvas (no external libs)
-function generateQrDataUrl(text, size){
-  // use a simple in-browser QR generator via canvas + minimal encoder:
-  // We'll use a lightweight JS implementation for QR generation (tiny)
-  // To keep single-file, use a small implementation (based on kazuhiko arase qrcode-generator).
-  // For brevity and reliability we will use a minimal emulation: generate via Google Chart? (deprecated)
-  // Instead: create via canvas + using an embedded tiny QR lib.
-  // For clarity here we'll implement using a small third-party function (compact).
-  // Because including full encoder is long, we fallback to using the browser's fetch to a simple QR generator endpoint if available.
-  // But offline: we can draw black/white placeholder until server side integration.
-  // For simplicity in this example we create a canvas and draw a placeholder QR with the text inside.
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0,0,size,size);
-  ctx.fillStyle = '#000';
-  ctx.font = (size/12|0) + 'px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('QR', size/2, size/2 - 12);
-  ctx.fillText(text, size/2, size/2 + 18);
-  return canvas.toDataURL();
+/* --- cookie helpers --- */
+function setCookie(name, value, days=30){ const d=new Date(); d.setTime(d.getTime()+days*86400000); document.cookie = name+'='+encodeURIComponent(value)+';path=/;expires='+d.toUTCString(); }
+function getCookie(name){ const pairs=document.cookie.split(';').map(s=>s.trim()); for(const p of pairs) if(p.startsWith(name+'=')) return decodeURIComponent(p.split('=').slice(1).join('=')); return null; }
+function eraseCookie(name){ document.cookie = name+'=; Max-Age=0; path=/'; }
+
+/* --- utility to parse terminalId and amount from URL path or query --- */
+function getTerminalFromUrl(){
+  // path like /TERMINAL_123 or trailing slash
+  const path = window.location.pathname || '/';
+  let tid = null;
+  const p = path.replace(/^\/+|\/+$/g,'');
+  if(p) tid = decodeURIComponent(p);
+  // query ?amount=...
+  const qs = new URLSearchParams(window.location.search);
+  const amount = qs.get('amount') || '';
+  return { terminalId: tid, amount: amount };
 }
 
-// small cookie helpers
-function setCookie(name, value, days){
-  const d = new Date();
-  d.setTime(d.getTime() + (days*24*60*60*1000));
-  document.cookie = name + '=' + encodeURIComponent(value) + ';path=/;expires=' + d.toUTCString();
-}
-function getCookie(name){
-  const pairs = document.cookie.split(';').map(s=>s.trim());
-  for(const p of pairs){
-    if(p.startsWith(name + '=')) return decodeURIComponent(p.split('=')[1]);
-  }
-  return null;
-}
-function eraseCookie(name){
-  document.cookie = name + '=; Max-Age=0; path=/';
-}
+/* --- UI refs --- */
+const terminalIdInput = document.getElementById('terminalId');
+const amountInput = document.getElementById('amount');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const btnAuth = document.getElementById('btnAuth');
+const btnFillCookie = document.getElementById('btnFillCookie');
+const loginStatus = document.getElementById('loginStatus');
+const qrText = document.getElementById('qrText');
+const qrTid = document.getElementById('qrTid');
 
-// Init: if saved user id — prefill
+const loginStage = document.getElementById('loginStage');
+const confirmStage = document.getElementById('confirmStage');
+const resultStage = document.getElementById('resultStage');
+const loggedUser = document.getElementById('loggedUser');
+const confTid = document.getElementById('confTid');
+const confAmount = document.getElementById('confAmount');
+const btnConfirm = document.getElementById('btnConfirm');
+const btnLogout = document.getElementById('btnLogout');
+const confirmStatus = document.getElementById('confirmStatus');
+const resultText = document.getElementById('resultText');
+
+let lastAuth = null; // { userId, username }
+
+/* --- init --- */
 document.addEventListener('DOMContentLoaded', () => {
-  const saved = getCookie('savedUserId');
-  if(saved) document.getElementById('userId').value = saved;
+  const info = getTerminalFromUrl();
+  if(info.terminalId){
+    terminalIdInput.value = info.terminalId;
+    qrText.textContent = info.terminalId;
+    qrTid.textContent = info.terminalId;
+    confTid.textContent = info.terminalId;
+  } else {
+    qrText.textContent = 'NO-TID';
+    qrTid.textContent = '—';
+  }
+  if(info.amount) { amountInput.value = info.amount; confAmount.textContent = info.amount; }
 
-  // build QR pointing to example.com/<terminalId>
-  const tidInput = document.getElementById('terminalId');
-  const amountInput = document.getElementById('amount');
-  const qrContainer = document.getElementById('qrContainer');
+  // if cookie with username exists, fill
+  const saved = getCookie('savedUsername');
+  if(saved) usernameInput.value = saved;
+});
 
-  function buildQr(){
-    const tid = (tidInput.value || 'TERMINAL_UNKNOWN').trim();
-    const url = 'https://example.com/' + encodeURIComponent(tid);
-    const size = Math.min(window.innerWidth, 480) * 0.6 | 0;
-    const dataUrl = generateQrDataUrl(url, size || 220);
-    qrContainer.innerHTML = '<img src="'+dataUrl+'" alt="QR">';
-    // make clickable
-    qrContainer.onclick = () => { window.open(url, '_blank') };
+/* --- AUTH (login) --- */
+btnAuth.addEventListener('click', async () => {
+  loginStatus.textContent = 'Проверка...';
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+  const terminalId = terminalIdInput.value.trim();
+  const amount = parseFloat(amountInput.value || '0') || 0;
+  if(!username || !password || !terminalId || amount<=0){
+    loginStatus.textContent = 'Заполните Terminal, сумму, username и пароль.';
+    return;
   }
 
-  // initial QR
-  buildQr();
-  tidInput.addEventListener('input', buildQr);
-
-  // login button
-  document.getElementById('btnLogin').addEventListener('click', async () => {
-    const userId = document.getElementById('userId').value.trim();
-    const password = document.getElementById('password').value;
-    const terminalId = document.getElementById('terminalId').value.trim();
-    const amount = parseFloat(document.getElementById('amount').value) || 0;
-
-    const status = document.getElementById('status');
-    status.textContent = 'Отправляю запрос...';
-
-    if(!userId || !password || !terminalId || !amount){
-      status.textContent = 'Заполните Terminal ID, UserID, пароль и сумму.';
-      return;
+  try {
+    const resp = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
+    const json = await resp.json();
+    if(resp.ok && json.success){
+      // success
+      lastAuth = { userId: json.userId, username: username };
+      setCookie('savedUsername', username, 30);
+      loginStatus.textContent = 'Успешно. Перенаправляем на подтверждение...';
+      showConfirmStage(terminalId, amount, username);
+    } else {
+      loginStatus.textContent = 'Ошибка входа: ' + (json.error || 'неверный логин/пароль');
     }
-
-    try {
-      const resp = await fetch('/login', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ userId, password, terminalId, amount })
-      });
-      const j = await resp.json();
-      if(resp.ok && j.success){
-        status.textContent = 'Успешно: запрос отправлен. Терминал получит сигнал и начнёт оплату.';
-        // save cookie
-        setCookie('savedUserId', userId, 30);
-      } else {
-        status.textContent = 'Ошибка: ' + (j.error || 'неизвестная ошибка');
-      }
-    } catch(err){
-      status.textContent = 'Ошибка сети: ' + err.message;
-    }
-  });
-
-  document.getElementById('btnClearCookie').addEventListener('click', () => {
-    eraseCookie('savedUserId');
-    document.getElementById('userId').value = '';
-    document.getElementById('status').textContent = 'Cookie удалены.';
-  });
+  } catch(e){
+    loginStatus.textContent = 'Ошибка сети: ' + e.message;
+  }
 });
+
+btnFillCookie.addEventListener('click', ()=> {
+  const saved = getCookie('savedUsername');
+  if(saved) { usernameInput.value = saved; loginStatus.textContent = 'Вставлен сохранённый логин.'; } else loginStatus.textContent = 'Сохранённого логина нет.';
+});
+
+/* --- show confirm --- */
+function showConfirmStage(tid, amount, username){
+  loginStage.classList.add('hidden');
+  confirmStage.classList.remove('hidden');
+  loggedUser.textContent = username;
+  confTid.textContent = tid;
+  confAmount.textContent = (''+amount);
+}
+
+/* --- confirm action --- */
+btnConfirm.addEventListener('click', async () => {
+  confirmStatus.textContent = 'Отправка подтверждения на сервер...';
+  const tid = terminalIdInput.value.trim();
+  const amount = parseFloat(amountInput.value || '0') || 0;
+  if(!lastAuth || !tid || amount <= 0){
+    confirmStatus.textContent = 'Нет данных (возможно сессия устарела).';
+    return;
+  }
+  const payload = { terminalId: tid, userId: lastAuth.userId, username: lastAuth.username, amount };
+  try {
+    const resp = await fetch('/confirm', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const json = await resp.json();
+    if(resp.ok && json.success){
+      confirmStatus.textContent = 'Запрос принят. Терминал получит сигнал и начнёт оплату.';
+      // show result (fake)
+      confirmStage.classList.add('hidden');
+      resultStage.classList.remove('hidden');
+      resultText.textContent = `Оплата ${amount.toFixed(2)} ₽ успешно инициирована.`;
+      // optionally redirect or close after delay
+      setTimeout(()=>{ window.location.href = '/'; }, 4000);
+    } else {
+      confirmStatus.textContent = 'Ошибка: ' + (json.error || 'server error');
+    }
+  } catch(e){
+    confirmStatus.textContent = 'Ошибка сети: ' + e.message;
+  }
+});
+
+/* --- logout --- */
+btnLogout.addEventListener('click', ()=>{ eraseCookie('savedUsername'); lastAuth = null; confirmStage.classList.add('hidden'); loginStage.classList.remove('hidden'); loginStatus.textContent='Выход выполнен.'; });
+
 </script>
 </body>
 </html>
