@@ -3,343 +3,339 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>T-Bank Terminal — Подтвердить оплату</title>
+  <title>T-Bank — оплата терминалом</title>
   <style>
     :root{
-      --bg:#fff; --card:#fff; --text:#111; --accent:#FFD400; --btn-text:#000;
+      --bg: #ffffff;
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #666666;
+      --accent: #0066cc;
+      --success: #2e7d32;
+      --danger: #c62828;
     }
-    @media (prefers-color-scheme: dark) {
-      :root{
-        --bg:#000; --card:#111; --text:#fff; --accent:#FFD400; --btn-text:#000;
-      }
-    }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
-    .wrap{max-width:520px;margin:28px auto;padding:18px}
-    .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 6px 24px rgba(0,0,0,0.06)}
+    html,body{height:100%;margin:0;font-family:Inter, Roboto, Arial, sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:520px;margin:48px auto;padding:20px}
+    .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
     h1{margin:0 0 8px;font-size:20px}
-    p.small{margin:4px 0 12px;color:rgba(0,0,0,0.6)}
-    .field{margin-bottom:12px}
-    input[type="text"], input[type="password"]{width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;font-size:15px;background:transparent;color:var(--text)}
-    button{background:var(--accent);border:none;padding:12px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:var(--btn-text);font-size:15px}
-    button.ghost{background:transparent;border:1px solid #ddd;color:var(--text)}
-    .muted{color:rgba(0,0,0,0.6);font-size:14px}
-    .status{margin-top:12px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.03)}
-    .small-note { font-size:13px; color:rgba(0,0,0,0.5); margin-top:8px; }
-    .center { text-align:center; }
+    p {margin:6px 0;color:var(--muted)}
+    .amount{font-size:34px;font-weight:700;margin:8px 0}
+    label{display:block;margin-top:12px;font-size:13px;color:var(--muted)}
+    input[type=text], input[type=password]{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #e3e3e3;margin-top:6px;box-sizing:border-box;font-size:15px
+    }
+    button{display:inline-block;padding:10px 16px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+    .btn-ghost{background:transparent;color:var(--accent);border:1px solid rgba(0,102,204,0.12)}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:8px}
+    .center{text-align:center}
+    .status{margin-top:12px;padding:10px;border-radius:8px;background:#f6f8fb;color:var(--muted)}
+    .ok{color:var(--success)}
+    .err{color:var(--danger)}
+    .small{font-size:13px}
+    .hidden{display:none}
   </style>
-
-  <!-- Firebase (v9 modular) -->
-  <script type="module">
-    // --- ЗАМЕНИ на свою конфигурацию ---
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import {
-      getDatabase, ref, get, query, orderByChild, equalTo,
-      set, update, onValue
-    } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-
-    const firebaseConfig = {
-  apiKey: "AIzaSyDnORXUTdAoZ3RDkt439YNCCllggSUPejM",
-  authDomain: "t-bank-emu.firebaseapp.com",
-  databaseURL: "https://t-bank-emu-default-rtdb.firebaseio.com",
-  projectId: "t-bank-emu",
-  storageBucket: "t-bank-emu.firebasestorage.app",
-  messagingSenderId: "230284086962",
-  appId: "1:230284086962:web:e5e61a82a3c31eb6f9c3ab"
-};
-    // Инициализация Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    // --- UI helpers ---
-    const $ = sel => document.querySelector(sel);
-    const qs = sel => document.querySelectorAll(sel);
-
-    function setStatus(txt, isError = false) {
-      const el = $('#status');
-      el.innerText = txt;
-      el.style.color = isError ? 'crimson' : '';
-    }
-
-    function showMessage(txt) { setStatus(txt, false); }
-    function showError(txt) { setStatus(txt, true); }
-
-    // --- parse URL params ---
-    const params = new URLSearchParams(location.search);
-    const terminalId = params.get('id') || '';
-    const amountParam = parseFloat(params.get('amount') || '0') || 0;
-    const passedUsername = params.get('username') || null;
-
-    // --- state ---
-    let currentUsername = null;
-    let terminalUnsub = null; // для отписки onValue
-
-    // --- network helper: timeout wrapper ---
-    function withTimeout(promise, ms = 7000) {
-      return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
-      ]);
-    }
-
-    // --- lookup user by username (safe, with timeout & error handling) ---
-    async function findUserByUsername(username) {
-      try {
-        const q = query(ref(db, 'users'), orderByChild('username'), equalTo(username));
-        const snap = await withTimeout(get(q), 8000);
-        if (!snap.exists()) return null;
-        const val = snap.val();
-        // берем первый найденный
-        const key = Object.keys(val)[0];
-        const data = val[key];
-        return { key, data };
-      } catch (err) {
-        console.error('findUserByUsername error', err);
-        throw err;
-      }
-    }
-    
-
-async function verifyCredentials(username, password) {
-  try {
-    const u = await findUserByUsername(username);
-    if (!u) return { ok: false, reason: "Пользователь не найден" };
-
-    const stored = u.data.password;
-    if (typeof stored === 'undefined') return { ok: false, reason: "Пароль не настроен на аккаунте" };
-
-    // Нормализуем: убираем пробелы вокруг и сравниваем строки
-    const sStored = String(stored).trim();
-    const sPass = String(password).trim();
-
-    if (sStored === sPass) {
-      return { ok: true, key: u.key, data: u.data };
-    } else {
-      return { ok: false, reason: "Неправильный пароль" };
-    }
-  } catch (err) {
-    console.error('verifyCredentials error', err);
-    return { ok: false, reason: 'Ошибка сети/сервер: ' + (err.message || err) };
-  }
-}
-
-
-    // --- confirmPayment: atomically обновляем терминал и подписываемся на результат ---
-    async function confirmPayment(username, amount) {
-      if (!terminalId) {
-        showError("Ошибка: terminal id отсутствует в URL");
-        return;
-      }
-
-      const termPath = `terminals/${terminalId}`;
-      const termRef = ref(db, termPath);
-
-      try {
-        // Обновляем запись терминала: mobile=on, username, amount, status=pending
-        await withTimeout(update(ref(db, termPath), {
-          username: username,
-          amount: Number(amount),
-          mobile: "on",
-          status: "pending",
-          lastUpdate: Date.now()
-        }), 7000);
-
-        showMessage("Запрос отправлен терминалу. Ожидайте подтверждения...");
-
-        // очистим предыдущую подписку если была
-        if (typeof terminalUnsub === 'function') {
-          terminalUnsub();
-          terminalUnsub = null;
-        }
-
-        // подпишемся на терминал и будем слушать status/mobile
-        terminalUnsub = onValue(termRef, (snap) => {
-          const val = snap.val() || {};
-          const mobile = val.mobile;
-          const status = val.status;
-          // показываем текущий статус
-          if (status) showMessage(`Статус: ${status}`);
-          else showMessage(`Статус: ожидание`);
-
-          // Если терминал установил mobile=off и status сообщает результат — завершаем
-          if (mobile === "off") {
-            if (status === 'paid') {
-              const lastAmt = val.lastPayment?.amount ?? amount;
-              showMessage(`Оплата ${Number(lastAmt).toFixed(2)} ₽ проведена успешно.`);
-            } else if (status === 'insufficient') {
-              showError("У вас недостаточно средств.");
-            } else {
-              // другие статусы
-              showMessage(`Статус терминала: ${status || 'неизвестен'}`);
-            }
-            // отписываемся (чтобы не висела "вечная" подписка)
-            try { terminalUnsub(); } catch(e) {}
-            terminalUnsub = null;
-          }
-        }, (err) => {
-          console.error('onValue error', err);
-          showError('Ошибка подписки на терминал: ' + (err.message || err));
-          // отписать если нужно
-          if (typeof terminalUnsub === 'function') { try { terminalUnsub(); } catch(e){} terminalUnsub = null; }
-        });
-
-      } catch (err) {
-        console.error('confirmPayment error', err);
-        showError('Ошибка отправки запроса: ' + (err.message || err));
-      }
-    }
-
-    // --- DOM ready init ---
-    window.addEventListener('DOMContentLoaded', () => {
-      $('#terminal').innerText = terminalId || '(не указан)';
-      $('#amount').innerText = amountParam.toFixed(2) + ' ₽';
-
-      // Если пришёл username в URL (например: ?id=TERMINAL&username=dima_ko)
-      if (passedUsername) {
-        $('#loginForm').style.display = 'none';
-        currentUsername = passedUsername;
-        $('#userDisplay').innerText = currentUsername;
-        $('#userBlock').style.display = 'block';
-        setStatus('Проверяем баланс...');
-        // проверим баланс с таймаутом
-        findUserByUsername(currentUsername).then(u => {
-          if (!u) {
-            $('#checkMessage').innerText = 'Пользователь не найден';
-            $('#confirmBtn').disabled = true;
-            showError('Пользователь не найден');
-            return;
-          }
-          const balance = parseFloat(u.data.balance) || 0;
-          if (balance < amountParam) {
-            $('#checkMessage').innerText = 'Недостаточно средств';
-            $('#confirmBtn').disabled = true;
-            showError('Недостаточно средств');
-          } else {
-            $('#checkMessage').innerText = `Достаточно средств: ${balance.toFixed(2)} ₽`;
-            $('#confirmBtn').disabled = false;
-            showMessage('Готово к подтверждению');
-          }
-        }).catch(err => {
-          console.error(err);
-          $('#checkMessage').innerText = 'Ошибка проверки';
-          $('#confirmBtn').disabled = true;
-          showError('Ошибка проверки пользователя: ' + (err.message || err));
-        });
-      } else {
-        // показать форму логина
-        $('#userBlock').style.display = 'none';
-        $('#loginForm').style.display = 'block';
-      }
-
-      // Автовставка username из localStorage (если есть)
-      const stored = localStorage.getItem('tb_logged_username');
-      if (stored && !passedUsername) {
-        $('#username').value = stored;
-      }
-
-      // Login button handler
-      $('#loginBtn').addEventListener('click', async (e) => {
-        e.preventDefault();
-        $('#loginError').innerText = '';
-        const username = $('#username').value.trim();
-        const password = $('#password').value;
-        if (!username || !password) {
-          $('#loginError').innerText = 'Введите username и пароль';
-          return;
-        }
-        $('#loginError').innerText = 'Проверка...';
-        try {
-          const res = await verifyCredentials(username, password);
-          if (!res.ok) {
-            $('#loginError').innerText = res.reason;
-            showError(res.reason);
-            return;
-          }
-          currentUsername = username;
-          // запомним username (но не пароль) в localStorage
-          try { localStorage.setItem('tb_logged_username', username); } catch(e){}
-          $('#loginForm').style.display = 'none';
-          $('#userDisplay').innerText = username;
-          $('#userBlock').style.display = 'block';
-
-          // проверим баланс
-          const balance = parseFloat(res.data.balance) || 0;
-          if (balance < amountParam) {
-            $('#checkMessage').innerText = 'Недостаточно средств';
-            $('#confirmBtn').disabled = true;
-            showError('Недостаточно средств');
-          } else {
-            $('#checkMessage').innerText = `Достаточно средств: ${balance.toFixed(2)} ₽`;
-            $('#confirmBtn').disabled = false;
-            showMessage('Готово к подтверждению');
-          }
-        } catch (err) {
-          console.error(err);
-          $('#loginError').innerText = 'Ошибка сети/сервер: ' + (err.message || err);
-          showError('Ошибка сети/сервер: ' + (err.message || err));
-        }
-      });
-
-      // Confirm pay handler
-      $('#confirmBtn').addEventListener('click', async (e) => {
-        if (!currentUsername) {
-          showError('Сначала войдите');
-          return;
-        }
-        $('#confirmBtn').disabled = true;
-        showMessage('Отправка запроса...');
-        await confirmPayment(currentUsername, amountParam);
-        // кнопка остаётся disabled, статус будет обновлён подпиской
-      });
-
-      // Clear button resets local UX (not the db)
-      $('#clearBtn')?.addEventListener('click', () => {
-        try { localStorage.removeItem('tb_logged_username'); } catch(e){}
-        $('#username').value = '';
-        $('#password').value = '';
-        $('#loginError').innerText = '';
-        showMessage('Очистили локальные данные');
-      });
-
-    });
-
-    // Отписка при выгрузке страницы
-    window.addEventListener('beforeunload', () => {
-      if (typeof terminalUnsub === 'function') {
-        try { terminalUnsub(); } catch(e){}
-        terminalUnsub = null;
-      }
-    });
-
-  </script>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1>Оплата — терминал <span id="terminal"></span></h1>
-      <p class="muted">Сумма: <strong id="amount">0.00 ₽</strong></p>
+    <div class="card" id="card">
+      <h1>Оплата терминалом</h1>
+      <p id="terminalHint" class="muted">Загрузка данных терминала…</p>
 
-      <div id="loginForm" style="display:none">
-        <div class="field"><input id="username" placeholder="Username" type="text" autocomplete="username"></div>
-        <div class="field"><input id="password" placeholder="Пароль" type="password" autocomplete="current-password"></div>
-        <div style="display:flex;gap:10px">
-          <button id="loginBtn">Войти</button>
-          <button id="clearBtn" class="ghost" type="button">Очистить</button>
+      <div id="terminalArea" class="hidden">
+        <div class="muted small">Терминал ID</div>
+        <div id="tid" style="font-weight:600;margin-bottom:8px"></div>
+
+        <div class="muted small">Сумма к оплате</div>
+        <div class="amount" id="amount">—</div>
+
+        <div id="userBlock" class="hidden">
+          <div class="muted small">Вы вошли как</div>
+          <div style="font-weight:600" id="loggedUser"></div>
         </div>
-        <div id="loginError" class="muted" style="margin-top:8px;color:red"></div>
-        <div class="small-note">Username и пароль проверяются в Realtime Database (для прототипа).</div>
+
+        <div id="authBlock">
+          <p class="muted">Для продолжения подтвердите данные или зарегистрируйтесь.</p>
+
+          <div id="formWrap">
+            <label>Имя (username)</label>
+            <input id="username" type="text" placeholder="например, dima123" />
+
+            <label>Пароль</label>
+            <input id="password" type="password" placeholder="минимум 4 символа" />
+
+            <div style="margin-top:12px" class="row">
+              <button id="btnRegister">Зарегистрироваться</button>
+              <button id="btnLogin" class="btn-ghost">Войти</button>
+            </div>
+
+            <div id="formMsg" class="muted small" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div id="confirmBlock" class="hidden" style="margin-top:16px">
+          <button id="btnConfirm">Подтвердить оплату</button>
+          <span id="confirmHint" class="muted small" style="margin-left:12px">Нажмите, чтобы инициировать платёж на терминале</span>
+        </div>
+
+        <div id="statusBlock" class="status hidden">
+          <div id="statusText"></div>
+        </div>
       </div>
 
-      <div id="userBlock" style="display:none">
-        <p>Войдены как: <strong id="userDisplay"></strong></p>
-        <p id="checkMessage" class="muted"></p>
-        <div style="margin-top:12px">
-          <button id="confirmBtn" disabled>Подтвердить оплату</button>
-        </div>
+      <div id="errorArea" class="hidden">
+        <p class="err">Ошибка: <span id="errorText"></span></p>
       </div>
 
-      <div class="status" id="status" style="margin-top:14px">Статус: ожидание действий</div>
-      <p class="center small-note" style="margin-top:8px">Если сайт долго не отвечает — проверьте firebaseConfig, правила Realtime Database и доступность интернета.</p>
+      <p style="margin-top:14px" class="muted small">QR-сканер направляет сюда. Если что-то не работает — проверьте терминал или попробуйте заново.</p>
     </div>
   </div>
+
+  <script type="module">
+    // ------ Firebase (замени на свои значения) ------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getDatabase, ref, get, set, push, query, orderByChild, equalTo, update, onValue
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "REPLACE_API_KEY",
+      authDomain: "REPLACE_AUTH_DOMAIN",
+      databaseURL: "https://REPLACE_PROJECT.firebaseio.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE_BUCKET.appspot.com",
+      messagingSenderId: "REPLACE_SENDER",
+      appId: "REPLACE_APPID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // ------ Утилиты ------
+    function $(id){ return document.getElementById(id) }
+    function show(el){ el.classList.remove('hidden') }
+    function hide(el){ el.classList.add('hidden') }
+    function setText(id, txt){ $(id).textContent = txt }
+
+    function getCookie(name){
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? decodeURIComponent(v.pop()) : null;
+    }
+    function setCookie(name, value, days=365){
+      const maxAge = days*24*60*60;
+      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}`;
+    }
+    function delCookie(name){
+      document.cookie = name + '=; Max-Age=0; path=/';
+    }
+
+    async function sha256Hex(text){
+      const enc = new TextEncoder();
+      const data = enc.encode(text);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      const arr = Array.from(new Uint8Array(hash));
+      return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // ------ Получаем ID терминала из URL ------
+    const params = new URLSearchParams(location.search);
+    const terminalId = (params.get('id') || '').trim();
+
+    const terminalHint = $('terminalHint');
+    const terminalArea = $('terminalArea');
+    const errorArea = $('errorArea');
+    const errorText = $('errorText');
+
+    if (!terminalId){
+      terminalHint.textContent = "Нет id терминала в URL. Проверьте QR.";
+      show(errorArea);
+      errorText.textContent = "Отсутствует параметр id в URL.";
+      throw new Error('No terminal id');
+    } else {
+      terminalHint.textContent = "Терминал: " + terminalId;
+    }
+
+    // элементы формы
+    const usernameInput = $('username');
+    const passwordInput = $('password');
+    const btnRegister = $('btnRegister');
+    const btnLogin = $('btnLogin');
+    const btnConfirm = $('btnConfirm');
+    const formMsg = $('formMsg');
+    const loggedUser = $('loggedUser');
+
+    // показываем базовую информацию
+    $('tid').textContent = terminalId;
+    show(terminalArea);
+
+    // прослушка терминала (обновления amount/status/mobile)
+    const termRef = ref(db, 'terminals/' + terminalId);
+    onValue(termRef, (snap) => {
+      const val = snap.val();
+      if (!val){
+        terminalHint.textContent = "Терминал не найден в базе.";
+        show(errorArea);
+        errorText.textContent = "Терминал отсутствует.";
+        return;
+      }
+      hide(errorArea);
+      const amount = val.amount ?? null;
+      const status = val.status ?? null;
+      const mobile = val.mobile ?? null;
+      if (amount !== null && amount !== undefined) {
+        $('amount').textContent = Number(amount).toFixed(2) + ' ₽';
+      } else {
+        $('amount').textContent = '—';
+      }
+      // если терминал уже оплачено
+      if (status === 'paid') {
+        show($('statusBlock'));
+        $('statusText').innerHTML = 'Статус: <strong class="ok">Оплачено</strong>';
+        hide($('confirmBlock'));
+      } else if (mobile === 'on') {
+        show($('statusBlock'));
+        $('statusText').innerHTML = 'Терминал ожидает подтверждения оплаты на стороне продавца...';
+        hide($('confirmBlock'));
+      } else {
+        hide($('statusBlock'));
+        // показать confirm, если есть куки
+        const cookieUser = getCookie('tbank_user');
+        if (cookieUser) {
+          $('loggedUser').textContent = cookieUser;
+          show($('userBlock'));
+          show($('confirmBlock'));
+          hide($('authBlock'));
+        } else {
+          hide($('userBlock'));
+          show($('authBlock'));
+          hide($('confirmBlock'));
+        }
+      }
+    }, (err) => {
+      terminalHint.textContent = "Ошибка чтения терминала: " + err.message;
+      show(errorArea);
+      errorText.textContent = err.message;
+    });
+
+    // проверка cookie при загрузке
+    const existingUser = getCookie('tbank_user');
+    if (existingUser){
+      $('loggedUser').textContent = existingUser;
+      show($('userBlock'));
+      hide($('authBlock'));
+      show($('confirmBlock'));
+    } else {
+      hide($('userBlock'));
+      show($('authBlock'));
+      hide($('confirmBlock'));
+    }
+
+    // ---- регистрация ----
+    btnRegister.addEventListener('click', async () => {
+      formMsg.textContent = '';
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || username.length < 2) { formMsg.textContent = 'Имя слишком короткое'; return; }
+      if (!password || password.length < 4) { formMsg.textContent = 'Пароль слишком короткий (минимум 4)'; return; }
+
+      formMsg.textContent = 'Проверка…';
+      try {
+        // проверим, не занят ли username
+        const q = query(ref(db, 'users'), orderByChild('username'), equalTo(username));
+        const snap = await get(q);
+        if (snap.exists()){
+          formMsg.textContent = 'Имя занято, попробуйте войти или выберите другое имя';
+          return;
+        }
+        // создаём пользователя в БД (минимально: username, passHash, balance:0)
+        const passHash = await sha256Hex(password);
+        const newUserRef = push(ref(db, 'users'));
+        await set(newUserRef, {
+          username: username,
+          passwordHash: passHash,
+          balance: 0.0,
+          createdAt: Date.now()
+        });
+        // сохраняем cookie username
+        setCookie('tbank_user', username);
+        formMsg.textContent = 'Готово — вы зарегистрированы.';
+        $('loggedUser').textContent = username;
+        show($('userBlock'));
+        hide($('authBlock'));
+        show($('confirmBlock'));
+      } catch (e) {
+        console.error(e);
+        formMsg.textContent = 'Ошибка регистрации: ' + e.message;
+      }
+    });
+
+    // ---- вход ----
+    btnLogin.addEventListener('click', async () => {
+      formMsg.textContent = '';
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || !password) { formMsg.textContent = 'Введите имя и пароль'; return; }
+      formMsg.textContent = 'Проверка…';
+      try {
+        const q = query(ref(db,'users'), orderByChild('username'), equalTo(username));
+        const snap = await get(q);
+        if (!snap.exists()){
+          formMsg.textContent = 'Пользователь не найден. Зарегистрируйтесь.';
+          return;
+        }
+        // у нас может быть 1 результат — берём первый
+        let matched = null;
+        snap.forEach(child => { matched = { key: child.key, val: child.val() }; return true; });
+        const passHash = await sha256Hex(password);
+        if (matched.val.passwordHash !== passHash){
+          formMsg.textContent = 'Неверный пароль';
+          return;
+        }
+        // ok
+        setCookie('tbank_user', username);
+        formMsg.textContent = 'Вход выполнен';
+        $('loggedUser').textContent = username;
+        show($('userBlock'));
+        hide($('authBlock'));
+        show($('confirmBlock'));
+      } catch (e) {
+        console.error(e);
+        formMsg.textContent = 'Ошибка входа: ' + e.message;
+      }
+    });
+
+    // ---- Подтвердить оплату (инициировать mobile:on) ----
+    btnConfirm.addEventListener('click', async () => {
+      const username = getCookie('tbank_user');
+      if (!username){
+        alert('Сначала войдите или зарегистрируйтесь.');
+        return;
+      }
+      // читаем текущие терминальные данные (значение amount там уже должно быть)
+      try {
+        const termSnap = await get(ref(db, 'terminals/' + terminalId));
+        if (!termSnap.exists()){
+          alert('Терминал не найден.');
+          return;
+        }
+        const termVal = termSnap.val();
+        // ставим mobile:on и username
+        await update(ref(db, 'terminals/' + terminalId), {
+          mobile: 'on',
+          username: username,
+          requestTime: Date.now()
+        });
+        show($('statusBlock'));
+        $('statusText').innerHTML = 'Запрос отправлен на терминал. Ожидайте подтверждения.';
+        hide($('confirmBlock'));
+      } catch (e){
+        console.error(e);
+        alert('Ошибка отправки запроса: ' + e.message);
+      }
+    });
+
+    // Если нужно — добавить кнопку выхода
+    // (например: delCookie('tbank_user'); location.reload(); )
+  </script>
 </body>
 </html>
