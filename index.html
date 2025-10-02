@@ -34,12 +34,20 @@
     .err{color:var(--danger)}
     .small{font-size:13px}
     .hidden{display:none}
+    /* header row with logout */
+    .header-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .logout-btn { background:transparent; border:1px solid rgba(0,0,0,0.06); color:var(--muted); padding:6px 10px; border-radius:8px; cursor:pointer; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card" id="card">
-      <h1>Оплата терминалом</h1>
+      <div class="header-row">
+        <h1>Оплата терминалом</h1>
+        <!-- кнопка выхода: по умолчанию hidden, показывается только после входа -->
+        <button id="btnLogout" class="logout-btn hidden">Выйти</button>
+      </div>
+
       <p id="terminalHint" class="muted">Загрузка данных терминала…</p>
 
       <div id="terminalArea" class="hidden">
@@ -146,6 +154,9 @@
     const errorArea = $('errorArea');
     const errorText = $('errorText');
 
+    // logout button element
+    const btnLogout = $('btnLogout');
+
     if (!terminalId){
       terminalHint.textContent = "Нет id терминала в URL. Проверьте QR.";
       show(errorArea);
@@ -202,10 +213,12 @@
           show($('userBlock'));
           show($('confirmBlock'));
           hide($('authBlock'));
+          show(btnLogout); // показать кнопку "Выйти"
         } else {
           hide($('userBlock'));
           show($('authBlock'));
           hide($('confirmBlock'));
+          hide(btnLogout); // скрыть кнопку "Выйти"
         }
       }
     }, (err) => {
@@ -214,17 +227,19 @@
       errorText.textContent = err.message;
     });
 
-    // check cookie
+    // check cookie (initial)
     const existingUser = getCookie('tbank_user');
     if (existingUser){
       $('loggedUser').textContent = existingUser;
       show($('userBlock'));
       hide($('authBlock'));
       show($('confirmBlock'));
+      show(btnLogout);
     } else {
       hide($('userBlock'));
       show($('authBlock'));
       hide($('confirmBlock'));
+      hide(btnLogout);
     }
 
     // REGISTER: save plain password (as user requested)
@@ -257,6 +272,7 @@
         show($('userBlock'));
         hide($('authBlock'));
         show($('confirmBlock'));
+        show(btnLogout);
       } catch (e) {
         console.error(e);
         formMsg.textContent = 'Ошибка регистрации: ' + e.message;
@@ -290,6 +306,7 @@
             show($('userBlock'));
             hide($('authBlock'));
             show($('confirmBlock'));
+            show(btnLogout);
             return;
           } else {
             formMsg.textContent = 'Неверный пароль';
@@ -307,6 +324,7 @@
             show($('userBlock'));
             hide($('authBlock'));
             show($('confirmBlock'));
+            show(btnLogout);
             return;
           } else {
             formMsg.textContent = 'Неверный пароль';
@@ -320,6 +338,13 @@
         console.error(e);
         formMsg.textContent = 'Ошибка входа: ' + e.message;
       }
+    });
+
+    // logout button clears cookie and reloads
+    btnLogout.addEventListener('click', () => {
+      delCookie('tbank_user');
+      // перезагружаем страницу (чтобы интерфейс заново проверил состояние)
+      location.reload();
     });
 
     // confirm payment (sets mobile:on and username on terminal node)
