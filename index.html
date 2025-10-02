@@ -3,528 +3,209 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>T-Bank — оплата терминалом</title>
+  <title>T-Bank — управление Value терминала</title>
   <style>
     :root{
-      --bg: #ffffff;
-      --card: #ffffff;
-      --text: #111111;
-      --muted: #666666;
-      --accent: #0066cc;
-      --success: #2e7d32;
-      --danger: #c62828;
+      --bg:#f7f8fb;--card:#fff;--text:#111;--muted:#666;--accent:#0066cc;--danger:#c62828;
     }
-    html,body{height:100%;margin:0;font-family:Inter, Roboto, Arial, sans-serif;background:var(--bg);color:var(--text)}
-    .wrap{max-width:720px;margin:24px auto;padding:20px;position:relative}
+    body{margin:0;font-family:Inter,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:900px;margin:20px auto;padding:16px}
     .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
     h1{margin:0 0 8px;font-size:20px}
-    p {margin:6px 0;color:var(--muted)}
-    .amount{font-size:34px;font-weight:700;margin:8px 0}
-    label{display:block;margin-top:12px;font-size:13px;color:var(--muted)}
-    input[type=text], input[type=password]{
-      width:100%;padding:10px;border-radius:8px;border:1px solid #e3e3e3;margin-top:6px;box-sizing:border-box;font-size:15px
-    }
-    button{display:inline-block;padding:10px 16px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
-    .btn-ghost{background:transparent;color:var(--accent);border:1px solid rgba(0,102,204,0.12)}
-    .muted{color:var(--muted);font-size:13px}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
-    .center{text-align:center}
-    .status{margin-top:12px;padding:10px;border-radius:8px;background:#f6f8fb;color:var(--muted)}
-    .ok{color:var(--success)}
-    .err{color:var(--danger)}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+    input[type=text], input[type=number] {padding:10px;border-radius:8px;border:1px solid #e8e8e8;font-size:14px}
+    button{padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+    .btn-ghost{background:transparent;border:1px solid rgba(0,102,204,0.12);color:var(--accent);padding:8px 12px;border-radius:8px}
     .small{font-size:13px}
     .hidden{display:none}
-    /* logout button */
-    .topbar {
-      display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;
-    }
-    .logout-btn { background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:14px;padding:8px;border-radius:8px }
-    .logout-btn:hover{color:var(--danger) }
-
-    /* camera modal */
-    .modal {
-      position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;
-    }
-    .modal .box{background:#fff;padding:12px;border-radius:10px;max-width:720px;width:92%}
-    video{width:100%;border-radius:8px;background:#000}
-    #faceMsg{margin-top:8px;color:var(--muted)}
+    pre{background:#f4f6fb;padding:10px;border-radius:8px;overflow:auto}
+    .err{color:var(--danger)}
   </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="topbar">
-      <div></div>
-      <button id="btnLogout" class="logout-btn hidden">Выйти</button>
-    </div>
-
-    <div class="card" id="card">
-      <h1>Оплата терминалом</h1>
-      <p id="terminalHint" class="muted">Загрузка данных терминала…</p>
-
-      <div id="terminalArea" class="hidden">
-        <div class="muted small">Терминал ID</div>
-        <div id="tid" style="font-weight:600;margin-bottom:8px"></div>
-
-        <div class="muted small">Сумма к оплате</div>
-        <div class="amount" id="amount">—</div>
-
-        <div id="userBlock" class="hidden">
-          <div class="muted small">Вы вошли как</div>
-          <div style="font-weight:600" id="loggedUser"></div>
-        </div>
-
-        <div id="authBlock">
-          <p class="muted">Для продолжения подтвердите данные или зарегистрируйтесь.</p>
-
-          <div id="formWrap">
-            <label>Имя (username)</label>
-            <input id="username" type="text" placeholder="например, dima123" />
-
-            <label>Пароль</label>
-            <input id="password" type="password" placeholder="минимум 4 символа" />
-
-            <div style="margin-top:12px" class="row">
-              <button id="btnRegister">Зарегистрироваться</button>
-              <button id="btnLogin" class="btn-ghost">Войти</button>
-              <button id="btnFaceLogin" class="btn-ghost">Войти по лицу</button>
-            </div>
-
-            <div id="formMsg" class="muted small" style="margin-top:8px"></div>
-          </div>
-        </div>
-
-        <div id="confirmBlock" class="hidden" style="margin-top:16px">
-          <button id="btnConfirm">Подтвердить оплату</button>
-          <span id="confirmHint" class="muted small" style="margin-left:12px">Нажмите, чтобы инициировать платёж на терминале</span>
-        </div>
-
-        <div id="statusBlock" class="status hidden">
-          <div id="statusText"></div>
-        </div>
-      </div>
-
-      <div id="errorArea" class="hidden">
-        <p class="err">Ошибка: <span id="errorText"></span></p>
-      </div>
-
-      <p style="margin-top:14px" class="muted small">QR-сканер направляет сюда. Если что-то не работает — проверьте терминал или попробуйте заново.</p>
-    </div>
-  </div>
-
-  <!-- Camera / face modal -->
-  <div id="faceModal" class="modal hidden">
-    <div class="box">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <strong>Вход по лицу</strong>
-        <button id="closeFace" class="logout-btn">Отмена</button>
-      </div>
-      <video id="video" autoplay muted playsinline></video>
-      <div style="margin-top:8px" class="row">
-        <button id="scanFace">Сканировать лицо</button>
-        <div id="faceMsg" class="muted small">Загрузка моделей...</div>
-      </div>
-    </div>
-  </div>
-
+  <!-- Firebase v9 modular -->
   <script type="module">
-    // --- Firebase SDK v9 modular
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import {
-      getDatabase, ref, get, set, push, query, orderByChild, equalTo, update, onValue
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+    import { getDatabase, ref, get, set, update, onValue, off } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-    // --- face-api.js (TFJS-based)
-    // Тебе нужно положить модели (weights) в ./models/ — см. notes ниже.
-    import * as faceapi from 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
-
-    // ====== CONFIG: замените на свои параметры ======
+    // ====== ЗАМЕНИ НА СВОИ ПАРАМЕТРЫ ======
     const firebaseConfig = {
-  apiKey: "AIzaSyDnORXUTdAoZ3RDkt439YNCCllggSUPejM",
-  authDomain: "t-bank-emu.firebaseapp.com",
-  databaseURL: "https://t-bank-emu-default-rtdb.firebaseio.com",
-  projectId: "t-bank-emu",
-  storageBucket: "t-bank-emu.firebasestorage.app",
-  messagingSenderId: "230284086962",
-  appId: "1:230284086962:web:e5e61a82a3c31eb6f9c3ab"
-};
+      apiKey: "REPLACE_API_KEY",
+      authDomain: "REPLACE_AUTH_DOMAIN",
+      databaseURL: "https://REPLACE_PROJECT.firebaseio.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE_BUCKET.appspot.com",
+      messagingSenderId: "REPLACE_SENDER",
+      appId: "REPLACE_APPID"
+    };
+    // =======================================
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    // ================================================
 
-    // helper shortcuts
-    const $ = id => document.getElementById(id);
-    const show = el => el.classList.remove('hidden');
-    const hide = el => el.classList.add('hidden');
+    // --- DOM ---
+    const $$ = id => document.getElementById(id);
+    const inputTid = $$('inputTid');
+    const btnLoadTid = $$('btnLoadTid');
+    const tidDisplay = $$('tidDisplay');
+    const amountDisplay = $$('amountDisplay');
+    const termRaw = $$('termRaw');
+    const valueInput = $$('valueInput');
+    const btnWrite = $$('btnWrite');
+    const btnClear = $$('btnClear');
+    const info = $$('info');
+    const terminalHint = $$('terminalHint');
 
-    // cookie helpers
-    function getCookie(name){
-      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-      return v ? decodeURIComponent(v.pop()) : null;
-    }
-    function setCookie(name, value, days=365){
-      const maxAge = days*24*60*60;
-      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}`;
-    }
-    function delCookie(name){
-      document.cookie = name + '=; Max-Age=0; path=/';
-    }
+    let currentTid = null;
+    let termRef = null;
 
-    // simple sha256 (legacy) - kept for backward compatibility if needed
-    async function sha256Hex(text){
-      const enc = new TextEncoder();
-      const data = enc.encode(text);
-      const hash = await crypto.subtle.digest('SHA-256', data);
-      const arr = Array.from(new Uint8Array(hash));
-      return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+    function showInfo(txt, err=false){
+      info.textContent = txt;
+      info.style.color = err ? 'var(--danger)' : 'var(--muted)';
     }
 
-    // page elements
-    const terminalHint = $('terminalHint');
-    const terminalArea = $('terminalArea');
-    const errorArea = $('errorArea');
-    const errorText = $('errorText');
-    const tidEl = $('tid');
-    const amountEl = $('amount');
-    const statusBlock = $('statusBlock');
-    const statusText = $('statusText');
-
-    const usernameInput = $('username');
-    const passwordInput = $('password');
-    const btnRegister = $('btnRegister');
-    const btnLogin = $('btnLogin');
-    const btnFaceLogin = $('btnFaceLogin');
-    const btnConfirm = $('btnConfirm');
-    const formMsg = $('formMsg');
-    const loggedUser = $('loggedUser');
-    const userBlock = $('userBlock');
-    const authBlock = $('authBlock');
-    const confirmBlock = $('confirmBlock');
-    const btnLogout = $('btnLogout');
-
-    // face modal
-    const faceModal = $('faceModal');
-    const video = $('video');
-    const scanFaceBtn = $('scanFace');
-    const faceMsg = $('faceMsg');
-    const closeFace = $('closeFace');
-
-    // parse terminal id from URL
-    const params = new URLSearchParams(location.search);
-    const terminalId = (params.get('id') || '').trim();
-    if (!terminalId) {
-      terminalHint.textContent = 'Нет id терминала в URL. Проверьте QR.';
-      show(errorArea);
-      errorText.textContent = 'Отсутствует параметр id в URL.';
-      throw new Error('No terminal id');
-    }
-    tidEl.textContent = terminalId;
-    show(terminalArea);
-
-    // show logout if logged
-    function updateLoginUI() {
-      const u = getCookie('tbank_user');
-      if (u) {
-        $('loggedUser').textContent = u;
-        show(userBlock);
-        hide(authBlock);
-        show(confirmBlock);
-        show(btnLogout);
-      } else {
-        hide(userBlock);
-        show(authBlock);
-        hide(confirmBlock);
-        hide(btnLogout);
+    function normalizeTerminalValue(obj){
+      // пытаемся найти поле, содержащее сумму: Value, value, ValueAmount, amount, Value (регистронезависимо)
+      if (!obj) return null;
+      // direct common keys
+      const keys = Object.keys(obj);
+      // prioritize exact keys
+      const candidates = ['Value','value','amount','ValueAmount','ValueAmt','ValueAmount','Value_val','ValueVal'];
+      for (const k of candidates){
+        if (k in obj) return {key:k, val: obj[k]};
       }
-    }
-    updateLoginUI();
-
-    // Listen terminal node
-    const termRef = ref(db, 'terminals/' + terminalId);
-    onValue(termRef, (snap) => {
-      const val = snap.val();
-      if (!val) {
-        terminalHint.textContent = 'Терминал не найден в базе.';
-        show(errorArea);
-        errorText.textContent = 'Терминал отсутствует.';
-        return;
-      }
-      hide(errorArea);
-      const amount = val.amount ?? null;
-      const status = val.status ?? null;
-      const mobile = val.mobile ?? null;
-      amountEl.textContent = (amount !== null && amount !== undefined) ? Number(amount).toFixed(2) + ' ₽' : '—';
-      if (status === 'paid') {
-        show(statusBlock);
-        statusText.innerHTML = 'Статус: <strong class="ok">Оплачено</strong>';
-        hide(confirmBlock);
-      } else if (mobile === 'on') {
-        show(statusBlock);
-        statusText.innerHTML = 'Терминал ожидает подтверждения оплаты на стороне продавца...';
-        hide(confirmBlock);
-      } else {
-        hide(statusBlock);
-        const cookieUser = getCookie('tbank_user');
-        if (cookieUser) {
-          $('loggedUser').textContent = cookieUser;
-          show(userBlock);
-          show(confirmBlock);
-          hide(authBlock);
-        } else {
-          hide(userBlock);
-          show(authBlock);
-          hide(confirmBlock);
-        }
-      }
-    }, err => {
-      terminalHint.textContent = 'Ошибка чтения терминала: ' + err.message;
-      show(errorArea);
-      errorText.textContent = err.message;
-    });
-
-    // REGISTER (plain password as requested)
-    btnRegister.addEventListener('click', async () => {
-      formMsg.textContent = '';
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      if (!username || username.length < 2) { formMsg.textContent = 'Имя слишком короткое'; return; }
-      if (!password || password.length < 4) { formMsg.textContent = 'Пароль слишком короткий (минимум 4)'; return; }
-      formMsg.textContent = 'Проверка…';
-      try {
-        const q = query(ref(db, 'users'), orderByChild('username'), equalTo(username));
-        const snap = await get(q);
-        if (snap.exists()) {
-          formMsg.textContent = 'Имя занято, попробуйте войти или выберите другое имя';
-          return;
-        }
-        const newUserRef = push(ref(db, 'users'));
-        await set(newUserRef, {
-          username: username,
-          password: password, // plain text (as requested)
-          balance: 0.0,
-          createdAt: Date.now()
-        });
-        setCookie('tbank_user', username);
-        formMsg.textContent = 'Готово — вы зарегистрированы.';
-        updateLoginUI();
-      } catch (e) {
-        console.error(e);
-        formMsg.textContent = 'Ошибка регистрации: ' + e.message;
-      }
-    });
-
-    // LOGIN (plain first, fallback to hash)
-    btnLogin.addEventListener('click', async () => {
-      formMsg.textContent = '';
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      if (!username || !password) { formMsg.textContent = 'Введите имя и пароль'; return; }
-      formMsg.textContent = 'Проверка…';
-      try {
-        const q = query(ref(db,'users'), orderByChild('username'), equalTo(username));
-        const snap = await get(q);
-        if (!snap.exists()) {
-          formMsg.textContent = 'Пользователь не найден. Зарегистрируйтесь.';
-          return;
-        }
-        let matched = null;
-        snap.forEach(child => { matched = { key: child.key, val: child.val() }; return true; });
-
-        if (matched.val && typeof matched.val.password !== 'undefined') {
-          if (matched.val.password === password) {
-            setCookie('tbank_user', username);
-            formMsg.textContent = 'Вход выполнен';
-            updateLoginUI();
-            return;
-          } else {
-            formMsg.textContent = 'Неверный пароль';
-            return;
-          }
-        }
-        if (matched.val && typeof matched.val.passwordHash !== 'undefined') {
-          const h = await sha256Hex(password);
-          if (matched.val.passwordHash === h) {
-            setCookie('tbank_user', username);
-            formMsg.textContent = 'Вход выполнен (legacy hash)';
-            updateLoginUI();
-            return;
-          } else {
-            formMsg.textContent = 'Неверный пароль';
-            return;
-          }
-        }
-        formMsg.textContent = 'У пользователя нет пароля в записи. Зарегистрируйтесь заново.';
-      } catch (e) {
-        console.error(e);
-        formMsg.textContent = 'Ошибка входа: ' + e.message;
-      }
-    });
-
-    // CONFIRM -> set terminals/<id>/mobile = "on" and username
-    btnConfirm.addEventListener('click', async () => {
-      const username = getCookie('tbank_user');
-      if (!username) { alert('Сначала войдите или зарегистрируйтесь.'); return; }
-      try {
-        const termSnap = await get(ref(db, 'terminals/' + terminalId));
-        if (!termSnap.exists()) { alert('Терминал не найден.'); return; }
-        await update(ref(db, 'terminals/' + terminalId), {
-          mobile: 'on',
-          username: username,
-          requestTime: Date.now()
-        });
-        show(statusBlock);
-        statusText.innerHTML = 'Запрос отправлен на терминал. Ожидайте подтверждения.';
-        hide(confirmBlock);
-      } catch (e) {
-        console.error(e);
-        alert('Ошибка отправки запроса: ' + e.message);
-      }
-    });
-
-    // LOGOUT
-    btnLogout.addEventListener('click', () => {
-      delCookie('tbank_user');
-      location.reload();
-    });
-
-    // ================= Face login =================
-    // model path: /models (положи туда модельные файлы face-api)
-    const MODEL_URL = '/models'; // <- нужно разместить модели здесь
-    const FACE_SIM_THRESHOLD = 0.7; // косинусная схожесть (0..1). При необходимости подкорректируй.
-
-    async function loadFaceModels() {
-      faceMsg.textContent = 'Загружаем модели...';
-      try {
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        faceMsg.textContent = 'Модели загружены';
-      } catch (e) {
-        console.error('model load error', e);
-        faceMsg.textContent = 'Ошибка загрузки моделей: ' + e.message;
-      }
-    }
-
-    let stream = null;
-    async function startCamera() {
-      faceMsg.textContent = 'Включение камеры...';
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        video.srcObject = stream;
-        await video.play();
-        faceMsg.textContent = 'Наведите лицо в рамку и нажмите "Сканировать лицо".';
-      } catch (e) {
-        console.error(e);
-        faceMsg.textContent = 'Ошибка камеры: ' + e.message;
-      }
-    }
-
-    function stopCamera() {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }
-      video.pause();
-      video.srcObject = null;
-    }
-
-    // cosine similarity between two arrays
-    function cosineSimilarity(a, b) {
-      if (!a || !b || a.length !== b.length) return -1;
-      let dot = 0, na = 0, nb = 0;
-      for (let i=0;i<a.length;i++){ dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
-      if (na === 0 || nb === 0) return -1;
-      return dot / (Math.sqrt(na) * Math.sqrt(nb));
-    }
-
-    // convert any stored embedding to float array
-    function toFloatArray(raw) {
-      if (!raw) return null;
-      // firebase might store as object with numeric keys or as array
-      if (Array.isArray(raw)) return raw.map(x => parseFloat(x));
-      if (typeof raw === 'object') {
-        // object like {0: val, 1: val, length: n}
-        const arr = [];
-        const keys = Object.keys(raw).sort((a,b)=>Number(a)-Number(b));
-        for (const k of keys) {
-          if (!isNaN(k)) arr.push(parseFloat(raw[k]));
-        }
-        if (arr.length) return arr;
+      // fallback: search for numeric-ish fields
+      for (const k of keys){
+        const v = obj[k];
+        if (v === null || v === undefined) continue;
+        // numeric or numeric string
+        if (typeof v === 'number') return {key:k, val:v};
+        if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return {key:k, val: Number(v)};
       }
       return null;
     }
 
-    // main face login flow: capture -> descriptor -> compare with DB users faceEmbedding
-    btnFaceLogin.addEventListener('click', async () => {
-      // load models if needed, start camera, show modal
-      show(faceModal);
-      faceMsg.textContent = 'Подготовка...';
-      await loadFaceModels();
-      await startCamera();
-    });
-
-    closeFace.addEventListener('click', () => {
-      stopCamera();
-      hide(faceModal);
-    });
-
-    scanFaceBtn.addEventListener('click', async () => {
-      faceMsg.textContent = 'Сканируем...';
-      try {
-        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-        if (!detection) {
-          faceMsg.textContent = 'Лицо не найдено — попробуйте ещё раз.';
+    function attachListener(tid){
+      // detach old
+      if (termRef) {
+        try { off(termRef); } catch(e){}
+        termRef = null;
+      }
+      currentTid = tid;
+      tidDisplay.textContent = tid;
+      terminalHint.textContent = 'Подключение к терминалу...';
+      termRef = ref(db, 'terminals/' + tid);
+      onValue(termRef, snap => {
+        const val = snap.val();
+        if (!val) {
+          terminalHint.textContent = 'Терминал не найден в базе.';
+          amountDisplay.textContent = '—';
+          termRaw.textContent = 'null';
+          showInfo('Терминал отсутствует или путь неверный', true);
           return;
         }
-        faceMsg.textContent = 'Лицо найдено. Сравниваем с базой...';
-        const descriptor = Array.from(detection.descriptor); // Float32Array -> Array
-
-        // get all users and compare to those with faceEmbedding
-        const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) {
-          faceMsg.textContent = 'В базе нет пользователей.';
-          return;
-        }
-
-        let bestUser = null;
-        let bestScore = -1;
-        usersSnap.forEach(child => {
-          const val = child.val();
-          if (!val) return;
-          const storedRaw = val.faceEmbedding || val.faceEmbeddingVector || val.embedding || null;
-          if (!storedRaw) return;
-          const stored = toFloatArray(storedRaw);
-          if (!stored) return;
-          const sim = cosineSimilarity(descriptor, stored);
-          if (sim > bestScore) {
-            bestScore = sim;
-            bestUser = { key: child.key, val: val };
-          }
-        });
-
-        if (bestUser && bestScore >= FACE_SIM_THRESHOLD) {
-          // success: login as bestUser
-          const username = bestUser.val.username || bestUser.val.userId || bestUser.key;
-          setCookie('tbank_user', username);
-          faceMsg.textContent = `Успешно: найден пользователь ${username} (score=${bestScore.toFixed(3)}).`;
-          stopCamera();
-          hide(faceModal);
-          updateLoginUI();
+        // show raw snapshot
+        termRaw.textContent = JSON.stringify(val, null, 2);
+        // try to find Value-like field
+        const found = normalizeTerminalValue(val);
+        if (found) {
+          amountDisplay.textContent = Number(found.val).toFixed(2);
+          showInfo(`Полевой ключ: ${found.key}`);
         } else {
-          faceMsg.textContent = `Пользователь не найден (best score=${bestScore.toFixed(3)}). Попробуйте ещё раз или войдите по паролю.`;
+          amountDisplay.textContent = '—';
+          showInfo('Поле Value (или эквивалент) не найдено в терминале');
         }
+        terminalHint.textContent = 'Терминал подключён и слушается (live updates).';
+      }, err => {
+        terminalHint.textContent = 'Ошибка чтения терминала: ' + err.message;
+        termRaw.textContent = '';
+        amountDisplay.textContent = '—';
+        showInfo('Ошибка чтения терминала: ' + err.message, true);
+      });
+    }
 
+    // извлекаем id из url ?id=...
+    const params = new URLSearchParams(location.search);
+    const urlTid = (params.get('id') || '').trim();
+    if (urlTid) {
+      inputTid.value = urlTid;
+      attachListener(urlTid);
+    } else {
+      terminalHint.textContent = 'ID терминала не передан в URL. Введите вручную и нажмите "Загрузить".';
+    }
+
+    btnLoadTid.addEventListener('click', () => {
+      const tid = inputTid.value.trim();
+      if (!tid) { alert('Введите ID терминала'); return; }
+      attachListener(tid);
+    });
+
+    btnWrite.addEventListener('click', async () => {
+      if (!currentTid) { alert('Сначала укажите ID терминала'); return; }
+      const v = valueInput.value.trim();
+      if (v === '') { alert('Введите число для записи в Value'); return; }
+      const num = Number(v.replace(',', '.'));
+      if (isNaN(num)) { alert('Неверное число'); return; }
+      showInfo('Запись Value в базу...');
+      try {
+        // записываем именно в поле "Value" как число
+        const p = 'terminals/' + currentTid + '/Value';
+        await set(ref(db, p), num);
+        showInfo(`Успешно записано в ${p}: ${num}`);
       } catch (e) {
         console.error(e);
-        faceMsg.textContent = 'Ошибка при сканировании: ' + e.message;
+        showInfo('Ошибка записи: ' + e.message, true);
       }
     });
 
-    // initial UI update
-    updateLoginUI();
+    btnClear.addEventListener('click', async () => {
+      if (!currentTid) { alert('Сначала укажите ID терминала'); return; }
+      if (!confirm('Удалить поле terminals/' + currentTid + '/Value ?')) return;
+      try {
+        // удаляем поле Value (set null)
+        const p = 'terminals/' + currentTid + '/Value';
+        await set(ref(db, p), null);
+        showInfo('Поле Value удалено');
+      } catch (e) {
+        console.error(e);
+        showInfo('Ошибка при удалении: ' + e.message, true);
+      }
+    });
 
-    // Notes shown in console for convenience
-    console.log('Face-login ready. Для работы помести модели face-api.js в папку /models рядом с этой страницей.');
-    console.log('Порог FACE_SIM_THRESHOLD =', FACE_SIM_THRESHOLD);
+    // show initial info
+    showInfo('Готово. Подключите ID терминала и используйте запись Value.');
   </script>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Прогрузка Value для терминала</h1>
+      <p id="terminalHint" class="muted">Инициализация...</p>
+
+      <div class="row" style="margin-top:12px">
+        <input id="inputTid" type="text" placeholder="ID терминала (или ?id=... в URL)" style="flex:1" />
+        <button id="btnLoadTid" class="btn-ghost">Загрузить</button>
+      </div>
+
+      <div id="terminalArea" style="margin-top:16px">
+        <div class="small muted">Терминал</div>
+        <div id="tidDisplay" style="font-weight:700;margin-bottom:8px">—</div>
+
+        <div class="small muted">Текущее значение (Value / amount / value)</div>
+        <div id="amountDisplay" style="font-size:28px;font-weight:700;margin-bottom:8px">—</div>
+
+        <div class="row" style="margin-top:8px;align-items:center">
+          <input id="valueInput" type="text" placeholder="Введите сумму, которую нужно записать в Value" />
+          <button id="btnWrite">Записать Value</button>
+          <button id="btnClear" class="btn-ghost">Удалить Value</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small muted">Полный узел терминала:</div>
+          <pre id="termRaw" style="height:200px">—</pre>
+        </div>
+
+        <div style="margin-top:8px" class="small muted" id="info">—</div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
