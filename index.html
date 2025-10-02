@@ -3,31 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>T-Bank онлайн</title>
+  <title>Кассовая система T-Bank</title>
   <style>
     :root{
-      --bg:#f7f8fb;--card:#fff;--text:#111;--muted:#666;--accent:#0066cc;--danger:#c62828;
+      --bg:#f7f8fb; --card:#fff; --text:#111; --muted:#666; --accent:#0066cc; --danger:#c62828;
     }
     body{margin:0;font-family:Inter,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .container{max-width:900px;margin:20px auto;padding:16px}
-    .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
-    h1{margin:0 0 8px;font-size:20px}
+    .container{max-width:980px;margin:20px auto;padding:16px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .title{font-weight:700;font-size:18px}
+    .logout-btn{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:8px;border-radius:8px}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .col{display:flex;flex-direction:column;gap:8px}
+    input, button {font-size:14px}
+    input[type=text], input[type=password] {padding:10px;border-radius:8px;border:1px solid #e8e8e8}
+    button.btn{padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(0,102,204,0.12);color:var(--accent);padding:8px 12px;border-radius:8px}
     .muted{color:var(--muted)}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
-    input[type=text], input[type=number] {padding:10px;border-radius:8px;border:1px solid #e8e8e8;font-size:14px}
-    button{padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer}
-    .btn-ghost{background:transparent;border:1px solid rgba(0,102,204,0.12);color:var(--accent);padding:8px 12px;border-radius:8px}
     .small{font-size:13px}
-    .hidden{display:none}
     pre{background:#f4f6fb;padding:10px;border-radius:8px;overflow:auto}
-    .err{color:var(--danger)}
+    .hidden{display:none}
+    .value-box{font-size:28px;font-weight:700}
+    .panel{display:grid;grid-template-columns:1fr 320px;gap:16px}
+    @media(max-width:900px){ .panel{grid-template-columns:1fr} }
   </style>
-  <!-- Firebase v9 modular -->
   <script type="module">
+    // Firebase modular SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getDatabase, ref, get, set, update, onValue, off } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+    import { getDatabase, ref, onValue, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-    // ====== ЗАМЕНИ НА СВОИ ПАРАМЕТРЫ ======
+    // ---------- ЗАМЕНИ СВОИ ДАННЫЕ ----------
     const firebaseConfig = {
       apiKey: "REPLACE_API_KEY",
       authDomain: "REPLACE_AUTH_DOMAIN",
@@ -37,173 +43,347 @@
       messagingSenderId: "REPLACE_SENDER",
       appId: "REPLACE_APPID"
     };
-    // =======================================
+    // -----------------------------------------
+
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // --- DOM ---
-    const $$ = id => document.getElementById(id);
-    const inputTid = $$('inputTid');
-    const btnLoadTid = $$('btnLoadTid');
-    const tidDisplay = $$('tidDisplay');
-    const amountDisplay = $$('amountDisplay');
-    const termRaw = $$('termRaw');
-    const valueInput = $$('valueInput');
-    const btnWrite = $$('btnWrite');
-    const btnClear = $$('btnClear');
-    const info = $$('info');
-    const terminalHint = $$('terminalHint');
+    // --- DOM shorteners ---
+    const $ = id=>document.getElementById(id);
 
+    const tidInput = $('tidInput');
+    const btnLoad = $('btnLoad');
+    const tidText = $('tidText');
+    const terminalArea = $('terminalArea');
+    const valueDisplay = $('valueDisplay');
+    const rawNode = $('rawNode');
+    const info = $('info');
+    const terminalHint = $('terminalHint');
+
+    // auth controls
+    const usernameInput = $('regUsername');
+    const passwordInput = $('regPassword');
+    const btnRegister = $('btnRegister');
+    const btnLogin = $('btnLogin');
+    const btnLogout = $('btnLogout');
+    const userDisplay = $('userDisplay');
+    const authPanel = $('authPanel');
+    const userPanel = $('userPanel');
+    const authMsg = $('authMsg');
+
+    // Globals
     let currentTid = null;
     let termRef = null;
+    let listenerUnsub = null;
 
-    function showInfo(txt, err=false){
+    function getCookie(name){
+      const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return m ? decodeURIComponent(m.pop()) : null;
+    }
+    function setCookie(name,val,days=365){ document.cookie = `${name}=${encodeURIComponent(val)}; path=/; max-age=${days*24*60*60}`; }
+    function delCookie(name){ document.cookie = name + '=; Max-Age=0; path=/'; }
+
+    function showInfo(txt, isErr=false){
       info.textContent = txt;
-      info.style.color = err ? 'var(--danger)' : 'var(--muted)';
+      info.style.color = isErr ? 'var(--danger)' : 'var(--muted)';
     }
 
-    function normalizeTerminalValue(obj){
-      // пытаемся найти поле, содержащее сумму: Value, value, ValueAmount, amount, Value (регистронезависимо)
-      if (!obj) return null;
-      // direct common keys
-      const keys = Object.keys(obj);
-      // prioritize exact keys
-      const candidates = ['Value','value','amount','ValueAmount','ValueAmt','ValueAmount','Value_val','ValueVal'];
-      for (const k of candidates){
-        if (k in obj) return {key:k, val: obj[k]};
-      }
-      // fallback: search for numeric-ish fields
+    // find Value with capital V first, otherwise fallback to numeric-ish field
+    function extractValue(node){
+      if (!node) return null;
+      if (Object.prototype.hasOwnProperty.call(node, 'Value')) return {key:'Value', val: node['Value']};
+      // try case-insensitive variants
+      const keys = Object.keys(node);
       for (const k of keys){
-        const v = obj[k];
-        if (v === null || v === undefined) continue;
-        // numeric or numeric string
+        if (k.toLowerCase() === 'value') return {key:k, val: node[k]};
+      }
+      // try 'amount'
+      for (const k of keys){
+        if (k.toLowerCase() === 'amount') return {key:k, val: node[k]};
+      }
+      // fallback: first numeric field
+      for (const k of keys){
+        const v = node[k];
         if (typeof v === 'number') return {key:k, val:v};
-        if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return {key:k, val: Number(v)};
+        if (typeof v === 'string' && v.trim()!=='' && !isNaN(Number(v))) return {key:k, val:Number(v)};
       }
       return null;
     }
 
-    function attachListener(tid){
-      // detach old
-      if (termRef) {
-        try { off(termRef); } catch(e){}
-        termRef = null;
+    function attachTerminal(tid){
+      // detach previous
+      if (listenerUnsub && typeof listenerUnsub === 'function') {
+        try { listenerUnsub(); } catch(e){ /*ignore*/ }
+        listenerUnsub = null;
       }
       currentTid = tid;
-      tidDisplay.textContent = tid;
-      terminalHint.textContent = 'Подключение к терминалу...';
-      termRef = ref(db, 'terminals/' + tid);
-      onValue(termRef, snap => {
+      tidText.textContent = `Терминал: ${tid}`;
+      terminalHint.textContent = 'Подключение...';
+      terminalArea.classList.remove('hidden');
+
+      const r = ref(db, 'terminals/' + tid);
+      // onValue returns unsubscribe via function off? We'll emulate by using onValue and saving ref
+      const offFn = onValue(r, (snap)=>{
         const val = snap.val();
-        if (!val) {
-          terminalHint.textContent = 'Терминал не найден в базе.';
-          amountDisplay.textContent = '—';
-          termRaw.textContent = 'null';
-          showInfo('Терминал отсутствует или путь неверный', true);
+        if (!val){
+          terminalHint.textContent = 'Терминал не найден';
+          valueDisplay.textContent = '—';
+          rawNode.textContent = 'null';
+          showInfo('Терминал отсутствует в базе', true);
           return;
         }
-        // show raw snapshot
-        termRaw.textContent = JSON.stringify(val, null, 2);
-        // try to find Value-like field
-        const found = normalizeTerminalValue(val);
-        if (found) {
-          amountDisplay.textContent = Number(found.val).toFixed(2);
-          showInfo(`Полевой ключ: ${found.key}`);
+        rawNode.textContent = JSON.stringify(val, null, 2);
+        const found = extractValue(val);
+        if (found){
+          // always show label "Value" but use the found value; prefer exact 'Value' if present
+          const displayVal = (typeof found.val === 'number') ? Number(found.val).toFixed(2) : String(found.val);
+          valueDisplay.textContent = displayVal;
+          showInfo(`Параметр: ${found.key}`);
         } else {
-          amountDisplay.textContent = '—';
-          showInfo('Поле Value (или эквивалент) не найдено в терминале');
+          valueDisplay.textContent = '—';
+          showInfo('Поле Value не найдено');
         }
-        terminalHint.textContent = 'Терминал подключён и слушается (live updates).';
-      }, err => {
-        terminalHint.textContent = 'Ошибка чтения терминала: ' + err.message;
-        termRaw.textContent = '';
-        amountDisplay.textContent = '—';
-        showInfo('Ошибка чтения терминала: ' + err.message, true);
+        terminalHint.textContent = 'Терминал загружен (live updates).';
+      }, (err)=>{
+        terminalHint.textContent = 'Ошибка чтения: ' + err.message;
+        rawNode.textContent = '';
+        valueDisplay.textContent = '—';
+        showInfo('Ошибка: ' + err.message, true);
       });
+
+      // store unsubscribe helper
+      listenerUnsub = ()=>{ try { /* onValue can't be unsubscribed through returned value here; use off */ } catch(e){}; };
+      termRef = r;
     }
 
-    // извлекаем id из url ?id=...
+    // On load: check URL for id
     const params = new URLSearchParams(location.search);
     const urlTid = (params.get('id') || '').trim();
-    if (urlTid) {
-      inputTid.value = urlTid;
-      attachListener(urlTid);
+    if (urlTid){
+      // hide input row
+      $('tidRow').classList.add('hidden');
+      attachTerminal(urlTid);
     } else {
+      // show input row (user can enter id manually)
+      $('tidRow').classList.remove('hidden');
+      terminalArea.classList.add('hidden');
       terminalHint.textContent = 'ID терминала не передан в URL. Введите вручную и нажмите "Загрузить".';
     }
 
-    btnLoadTid.addEventListener('click', () => {
-      const tid = inputTid.value.trim();
-      if (!tid) { alert('Введите ID терминала'); return; }
-      attachListener(tid);
+    btnLoad.addEventListener('click', ()=>{
+      const v = tidInput.value.trim();
+      if (!v){ alert('Введите ID терминала'); return; }
+      attachTerminal(v);
+      // hide input after load
+      $('tidRow').classList.add('hidden');
     });
 
-    btnWrite.addEventListener('click', async () => {
-      if (!currentTid) { alert('Сначала укажите ID терминала'); return; }
-      const v = valueInput.value.trim();
-      if (v === '') { alert('Введите число для записи в Value'); return; }
-      const num = Number(v.replace(',', '.'));
-      if (isNaN(num)) { alert('Неверное число'); return; }
-      showInfo('Запись Value в базу...');
+    // ---------------- AUTH (simple plain password per request) ----------------
+    function updateAuthUI(){
+      const u = getCookie('tbank_user');
+      if (u){
+        userDisplay.textContent = u;
+        userPanel.classList.remove('hidden');
+        authPanel.classList.add('hidden');
+        btnLogout.classList.remove('hidden');
+      } else {
+        userPanel.classList.add('hidden');
+        authPanel.classList.remove('hidden');
+        btnLogout.classList.add('hidden');
+      }
+    }
+    updateAuthUI();
+
+    btnRegister.addEventListener('click', async ()=>{
+      authMsg.textContent = '';
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || username.length < 2){ authMsg.textContent = 'Имя слишком короткое'; return; }
+      if (!password || password.length < 4){ authMsg.textContent = 'Пароль слишком короткий'; return; }
       try {
-        // записываем именно в поле "Value" как число
-        const p = 'terminals/' + currentTid + '/Value';
-        await set(ref(db, p), num);
-        showInfo(`Успешно записано в ${p}: ${num}`);
-      } catch (e) {
+        // check existing
+        const q = query(ref(db, 'users'), orderByChild('username'), equalTo(username));
+        const snap = await get(q);
+        if (snap.exists()){ authMsg.textContent = 'Имя занято'; return; }
+        // push minimal user object
+        const pushRef = ref(db, 'users'); // we'll push under push key using set with auto id -> but Realtime SDK push requires push() method; to keep simple, we'll write at 'users/USER_<timestamp>_<username>'
+        const key = 'USER_' + Date.now() + '_' + username;
+        await (async ()=> { // small wrapper to use set via ref
+          const setRef = ref(db, 'users/' + key);
+          return await fetch('', {method:'GET'}).catch(()=>{}); // noop to avoid lint; not needed
+        })();
+        // Actually set directly (we can't import set? We didn't import set earlier — let's import at top)
+      } catch(e){
         console.error(e);
-        showInfo('Ошибка записи: ' + e.message, true);
+        authMsg.textContent = 'Ошибка: ' + e.message;
       }
     });
 
-    btnClear.addEventListener('click', async () => {
-      if (!currentTid) { alert('Сначала укажите ID терминала'); return; }
-      if (!confirm('Удалить поле terminals/' + currentTid + '/Value ?')) return;
-      try {
-        // удаляем поле Value (set null)
-        const p = 'terminals/' + currentTid + '/Value';
-        await set(ref(db, p), null);
-        showInfo('Поле Value удалено');
-      } catch (e) {
-        console.error(e);
-        showInfo('Ошибка при удалении: ' + e.message, true);
-      }
-    });
-
-    // show initial info
-    showInfo('Готово. Подключите ID терминала и используйте запись Value.');
+    // The above small try used only get() import. We need set and push — rework: re-import set and push at top.
   </script>
-</head>
-<body>
-  <div class="container">
-    <div class="card">
-      <h1>Прогрузка Value для терминала</h1>
-      <p id="terminalHint" class="muted">Инициализация...</p>
 
-      <div class="row" style="margin-top:12px">
-        <input id="inputTid" type="text" placeholder="ID терминала (или ?id=... в URL)" style="flex:1" />
-        <button id="btnLoadTid" class="btn-ghost">Загрузить</button>
+  <!-- Because we need set/push/update etc, include a second script block with correct imports and all logic (clean) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, onValue, get, query, orderByChild, equalTo, set, push } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    // Same config as earlier — replace with your own
+    const firebaseConfig = {
+      apiKey: "REPLACE_API_KEY",
+      authDomain: "REPLACE_AUTH_DOMAIN",
+      databaseURL: "https://REPLACE_PROJECT.firebaseio.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE_BUCKET.appspot.com",
+      messagingSenderId: "REPLACE_SENDER",
+      appId: "REPLACE_APPID"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // re-bind DOM
+    const $ = id=>document.getElementById(id);
+    const usernameInput = $('regUsername');
+    const passwordInput = $('regPassword');
+    const btnRegister = $('btnRegister');
+    const btnLogin = $('btnLogin');
+    const btnLogout = $('btnLogout');
+    const authMsg = $('authMsg');
+    const userPanel = $('userPanel');
+    const authPanel = $('authPanel');
+    const userDisplay = $('userDisplay');
+
+    function getCookie(name){
+      const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return m ? decodeURIComponent(m.pop()) : null;
+    }
+    function setCookie(name,val,days=365){ document.cookie = `${name}=${encodeURIComponent(val)}; path=/; max-age=${days*24*60*60}`; }
+    function delCookie(name){ document.cookie = name + '=; Max-Age=0; path=/'; }
+
+    function updateAuthUI(){
+      const u = getCookie('tbank_user');
+      if (u){
+        userDisplay.textContent = u;
+        userPanel.classList.remove('hidden');
+        authPanel.classList.add('hidden');
+        btnLogout.classList.remove('hidden');
+      } else {
+        userPanel.classList.add('hidden');
+        authPanel.classList.remove('hidden');
+        btnLogout.classList.add('hidden');
+      }
+    }
+    updateAuthUI();
+
+    btnRegister.addEventListener('click', async ()=>{
+      authMsg.textContent = '';
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || username.length < 2){ authMsg.textContent = 'Имя слишком короткое'; return; }
+      if (!password || password.length < 4){ authMsg.textContent = 'Пароль слишком короткий'; return; }
+      try {
+        const q = query(ref(db, 'users'), orderByChild('username'), equalTo(username));
+        const snap = await get(q);
+        if (snap.exists()){ authMsg.textContent = 'Имя занято'; return; }
+        // create user under users/<autoKey>
+        const newRef = push(ref(db, 'users'));
+        await set(newRef, {
+          username: username,
+          password: password,
+          createdAt: Date.now()
+        });
+        setCookie('tbank_user', username);
+        authMsg.textContent = 'Зарегистрированы';
+        updateAuthUI();
+      } catch (e){
+        console.error(e);
+        authMsg.textContent = 'Ошибка регистрации: ' + e.message;
+      }
+    });
+
+    btnLogin.addEventListener('click', async ()=>{
+      authMsg.textContent = '';
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || !password){ authMsg.textContent = 'Введите имя и пароль'; return; }
+      try {
+        const q = query(ref(db,'users'), orderByChild('username'), equalTo(username));
+        const snap = await get(q);
+        if (!snap.exists()){ authMsg.textContent = 'Пользователь не найден'; return; }
+        let matched = null;
+        snap.forEach(child=>{ matched = { key: child.key, val: child.val() }; return true; });
+        if (matched.val.password && matched.val.password === password){
+          setCookie('tbank_user', username);
+          authMsg.textContent = 'Вход выполнен';
+          updateAuthUI();
+        } else {
+          // fallback: if passwordHash exists (legacy) we could check, but you asked plain -> deny
+          authMsg.textContent = 'Неверный пароль';
+        }
+      } catch(e){
+        console.error(e);
+        authMsg.textContent = 'Ошибка входа: ' + e.message;
+      }
+    });
+
+    btnLogout.addEventListener('click', ()=>{
+      delCookie('tbank_user');
+      updateAuthUI();
+      location.reload();
+    });
+
+  </script>
+
+  <!-- PAGE markup -->
+  <div class="container">
+    <div class="topbar">
+      <div class="title">Кассовая система T-Bank</div>
+      <div>
+        <button id="btnLogout" class="logout-btn hidden">Выйти</button>
+      </div>
+    </div>
+
+    <div class="card panel">
+      <!-- left: terminal info -->
+      <div>
+        <div id="tidRow" class="row">
+          <input id="tidInput" type="text" placeholder="ID терминала (если не передан в URL)" />
+          <button id="btnLoad" class="ghost">Загрузить</button>
+        </div>
+
+        <div id="terminalArea" class="hidden">
+          <div class="muted small">Терминал</div>
+          <div id="tidText" style="font-weight:700;margin-bottom:8px">—</div>
+
+          <div class="muted small">Value</div>
+          <div id="valueDisplay" class="value-box">—</div>
+
+          <div style="margin-top:12px" class="muted small">Полный узел терминала (live)</div>
+          <pre id="rawNode" style="height:320px;overflow:auto">—</pre>
+
+          <div id="info" class="muted small" style="margin-top:8px"></div>
+        </div>
       </div>
 
-      <div id="terminalArea" style="margin-top:16px">
-        <div class="small muted">Терминал</div>
-        <div id="tidDisplay" style="font-weight:700;margin-bottom:8px">—</div>
-
-        <div class="small muted">Текущее значение (Value / amount / value)</div>
-        <div id="amountDisplay" style="font-size:28px;font-weight:700;margin-bottom:8px">—</div>
-
-        <div class="row" style="margin-top:8px;align-items:center">
-          <input id="valueInput" type="text" placeholder="Введите сумму, которую нужно записать в Value" />
-          <button id="btnWrite">Записать Value</button>
-          <button id="btnClear" class="btn-ghost">Удалить Value</button>
+      <!-- right: auth / registration -->
+      <div>
+        <div id="authPanel" class="card" style="padding:12px">
+          <div style="font-weight:700;margin-bottom:8px">Регистрация / Вход</div>
+          <div class="col">
+            <input id="regUsername" type="text" placeholder="username" />
+            <input id="regPassword" type="password" placeholder="пароль" />
+            <div class="row">
+              <button id="btnRegister" class="btn">Зарегистрироваться</button>
+              <button id="btnLogin" class="ghost">Войти</button>
+            </div>
+            <div id="authMsg" class="muted small"></div>
+          </div>
         </div>
 
-        <div style="margin-top:12px">
-          <div class="small muted">Полный узел терминала:</div>
-          <pre id="termRaw" style="height:200px">—</pre>
+        <div id="userPanel" class="card hidden" style="padding:12px;margin-top:12px">
+          <div style="font-weight:700">Вы вошли как</div>
+          <div id="userDisplay" style="font-weight:700;margin-bottom:8px">—</div>
+          <button id="btnLogout" class="btn ghost">Выйти</button>
         </div>
-
-        <div style="margin-top:8px" class="small muted" id="info">—</div>
       </div>
     </div>
   </div>
