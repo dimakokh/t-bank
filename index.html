@@ -19,7 +19,7 @@
     .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
     h1{margin:0 0 8px;font-size:20px}
     p {margin:6px 0;color:var(--muted)}
-    .valueunt{font-size:34px;font-weight:700;margin:8px 0}
+    .Valueunt{font-size:34px;font-weight:700;margin:8px 0}
     label{display:block;margin-top:12px;font-size:13px;color:var(--muted)}
     input[type=text], input[type=password]{
       width:100%;padding:10px;border-radius:8px;border:1px solid #e3e3e3;margin-top:6px;box-sizing:border-box;font-size:15px
@@ -47,7 +47,7 @@
         <div id="tid" style="font-weight:600;margin-bottom:8px"></div>
 
         <div class="muted small">Сумма к оплате</div>
-        <div class="valueunt" id="valueunt">—</div>
+        <div class="Valueunt" id="Valueunt">—</div>
 
         <div id="userBlock" class="hidden">
           <div class="muted small">Вы вошли как</div>
@@ -121,9 +121,9 @@
       const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
       return v ? decodeURIComponent(v.pop()) : null;
     }
-    function setCookie(name, value, days=365){
+    function setCookie(name, Value, days=365){
       const maxAge = days*24*60*60;
-      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}`;
+      document.cookie = `${name}=${encodeURIComponent(Value)}; path=/; max-age=${maxAge}`;
     }
     function delCookie(name){
       document.cookie = name + '=; Max-Age=0; path=/';
@@ -168,7 +168,7 @@
     $('tid').textContent = terminalId;
     show(terminalArea);
 
-    // прослушка терминала (обновления valueunt/status/mobile)
+    // прослушка терминала (обновления Valueunt/status/mobile)
     const termRef = ref(db, 'terminals/' + terminalId);
     onValue(termRef, (snap) => {
       const val = snap.val();
@@ -179,13 +179,13 @@
         return;
       }
       hide(errorArea);
-      const value = val.valueunt ?? null;
+      const Value = val.Valueunt ?? null;
       const status = val.status ?? null;
       const mobile = val.mobile ?? null;
-      if (valueunt !== null && valueunt !== undefined) {
-        $('valueunt').textContent = Number(valueunt).toFixed(2) + ' ₽';
+      if (Valueunt !== null && Valueunt !== undefined) {
+        $('Valueunt').textContent = Number(Valueunt).toFixed(2) + ' ₽';
       } else {
-        $('valueunt').textContent = '—';
+        $('Valueunt').textContent = '—';
       }
       // если терминал уже оплачено
       if (status === 'paid') {
@@ -233,8 +233,8 @@
     // ---- регистрация ----
     btnRegister.addEventListener('click', async () => {
       formMsg.textContent = '';
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
+      const username = usernameInput.Value.trim();
+      const password = passwordInput.Value;
       if (!username || username.length < 2) { formMsg.textContent = 'Имя слишком короткое'; return; }
       if (!password || password.length < 4) { formMsg.textContent = 'Пароль слишком короткий (минимум 4)'; return; }
 
@@ -272,8 +272,8 @@
     // ---- вход ----
     btnLogin.addEventListener('click', async () => {
       formMsg.textContent = '';
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
+      const username = usernameInput.Value.trim();
+      const password = passwordInput.Value;
       if (!username || !password) { formMsg.textContent = 'Введите имя и пароль'; return; }
       formMsg.textContent = 'Проверка…';
       try {
@@ -311,7 +311,7 @@
         alert('Сначала войдите или зарегистрируйтесь.');
         return;
       }
-      // читаем текущие терминальные данные (значение valueunt там уже должно быть)
+      // читаем текущие терминальные данные (значение Valueunt там уже должно быть)
       try {
         const termSnap = await get(ref(db, 'terminals/' + terminalId));
         if (!termSnap.exists()){
